@@ -36,8 +36,8 @@ subfinder -d $domain > $subdomain_path/found.txt
 echo -e "${RED} [+] Running assetfinder...${RESET}"
 assetfinder $domain | grep $domain >> $subdomain_path/found.txt
 
-#echo -e "${RED} [+] Grab a coffee, it's amass time. This could take a while...${RESET}"
-#amass enum -d $domain >> $subdomain_path/found.txt
+echo -e "${RED} [+] Grab a coffee, it's amass time. This could take a while...${RESET}"
+amass enum -d $domain >> $subdomain_path/found.txt
 
 echo -e "${RED} [+] Checking what's alive...${RESET}"
 cat $subdomain_path/found.txt | grep $domain | sort -u | httprobe -prefer-https | grep https | sed 's/https\?:\/\///' | tee -a $subdomain_path/alive.txt
