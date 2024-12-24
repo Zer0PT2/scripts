@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# Welcome to the Swiss Army Knife of Kali setup scripts! 🎯
+# This script turns your vanilla Kali into a fully-loaded pentesting powerhouse
+# Inspired by and based off of https://github.com/0x42eau/scripts/blob/main/kali_setup.sh
+
+# Setting up our error diary - because even hackers need logs 📝
+# Get the user's home directory even when running with sudo
+REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+if [ -z "$REAL_HOME" ]; then
+    REAL_HOME="$HOME"
+fi
+
+# Initialize logging with log files in the user's home directory
+LOG_DIR="$REAL_HOME/kali_setup_logs"
+LOG_FILE="$LOG_DIR/setup_error.log"
+
+# Create log directory and initialize log file
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+chown -R "$SUDO_USER:$SUDO_USER" "$LOG_DIR"
+echo "🚀 Mission Started: $(date)" | tee -a "$LOG_FILE"
+
+# Cleanup function - we leave no trace behind 🕵️
+cleanup() {
+    sudo -k
+    kill %1 2>/dev/null
+}
+
+# Setting our escape route - always have a backup plan
+trap cleanup EXIT
+
+# Keep sudo alive - because ain't nobody got time for typing passwords
+while true; do
+    sudo -n true
+    sleep 30
+done 2>/dev/null &
+
+# Error logging - because when things go wrong, we want to know why 🔍
+log_error() {
+    echo "[ERROR] $1" | tee -a "$LOG_FILE"
+}
+
+# Success logging - time to celebrate! 🎉
+log_success() {
+    echo "[SUCCESS] $1"
+}
+
+# Check for internet connectivity
+check_internet() {
+    echo "Checking internet connectivity..."
+    if ! ping -c 1 8.8.8.8 &>/dev/null; then
+        echo "❌ No internet connection detected. Please check your network connection and try again."
+        exit 1
+    fi
+    echo "✅ Internet connection confirmed"
+}
+
+# Check if system is Kali Linux
+check_kali() {
+    if ! grep -q 'PRETTY_NAME="Kali GNU/Linux Rolling"' /etc/os-release; then
+        echo "❌ This script is designed for Kali Linux. Other distributions may not work correctly."
+        exit 1
+    fi
+    echo "✅ Kali Linux detected"
+}
+
+# Check for locked apt/dpkg
+check_package_managers() {
+    echo "Checking if package managers are available..."
+    if sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+        echo "❌ Package manager is locked. Please wait a few minutes and try again."
+        echo "You can also try: sudo rm /var/lib/dpkg/lock-frontend"
+        exit 1
+    fi
+    echo "✅ Package managers are available"
+}
+
+# Fix for common package manager issues
+fix_package_manager() {
+    echo "🔧 Fixing package manager..."
+    sudo dpkg --configure -a
+    sudo apt-get install -f -y
+    sudo rm -f /var/lib/apt/lists/lock
+    sudo rm -f /var/cache/apt/archives/lock
+    sudo rm -f /var/lib/dpkg/lock*
+}
+
+# Main execution
+echo "🚀 Starting pre-flight checks..."
+check_internet
+check_kali
+check_package_managers
+
+echo "🚀 Initiating Operation: Kali Transformation..."
+
+# System Update - because a clean slate is a happy slate
+echo "📦 Time to update ALL the things..."
+sudo apt update && sudo apt upgrade -y || log_error "System update failed"
+
+# Core packages - the essentials for any self-respecting hacker
+CORE_PACKAGES=(
+    open-vm-tools     # Because VMs need love too
+    git              # Time machine for code
+    fish             # For those who think bash is too mainstream
+    terminator       # Terminal multiplicity at its finest
+    gedit           # When vim feels like overkill
+    python3-pip     # Because one Python package manager isn't enough
+    vim-gtk3        # For vim enthusiasts who like buttons
+    zaproxy         # Web app hacking made easy
+    keepassxc       # Password manager for the paranoid
+    curl            # Like wget's cooler cousin
+    pkg-config      # Because compiling stuff is fun
+    pipx            # Python package manager's package manager
+    brave-browser   # For the privacy conscious
+)
+
+# OSINT packages - because knowing is half the battle
+OSINT_PACKAGES=(
+    spiderfoot      # The footprinter's best friend
+    sherlock        # Finding usernames like a detective
+    maltego         # Six degrees of Kevin Bacon, but for OSINT
+    python3-shodan  # IoT search engine on steroids
+    theharvester    # Not for farming, but for reconnaissance
+    webhttrack      # Website cloner extraordinaire
+    outguess        # Hide your secrets in plain sight
+    stegosuite      # More steganography goodness
+    wireshark       # Watch those packets fly
+    metagoofil      # Metadata ninja
+    eyewitness      # Screenshot automation for the lazy
+    exifprobe       # EXIF data explorer
+    ruby-bundler    # Gems need managing too
+    recon-ng        # Because reconnaissance is a full-time job
+    cherrytree      # Note-taking for the methodical
+    instaloader     # Instagram OSINT made easy
+    photon          # Web crawler and OSINT Swiss knife
+    sublist3r       # Subdomain enumeration magic
+    osrframework    # OSINT Swiss Army knife
+    joplin          # Note-taking for the security conscious
+    drawing         # When a picture is worth 1000 words
+    finalrecon      # The final reconnaissance tool... until the next one
+    python3-exifread # Reading EXIF data like a pro
+    python3-fake-useragent # Because sometimes you need a disguise
+    yt-dlp          # YouTube-DL on steroids
+)
+
+# VMware shared folders setup - sharing is caring! 🤝
+echo "🔄 Making VMware play nice with shared folders..."
+MOUNT_POINT="/mnt/hgfs"
+mkdir -p "$MOUNT_POINT"
+
+# Mount commands - because one size doesn't fit all
+mount_commands=(
+    "/usr/bin/vmhgfs-fuse .host:/ $MOUNT_POINT -o subtype=vmhgfs-fuse,allow_other"
+    "mount -t vmhgfs .host:F:/VMShared /mnt/vmshared"
+    "/usr/bin/vmhgfs-fuse .host:F:/VMShared /mnt/vmshared -o subtype=vmhgfs-fuse,allow_other"
+    "mount -t fuse.vmhgfs-fuse .host:/ $MOUNT_POINT -o allow_other"
+)
+
+# Try each mount command until one works - persistence is key! 
+for cmd in "${mount_commands[@]}"; do
+    if eval "$cmd"; then
+        log_success "Mount mission accomplished with: $cmd"
+        break
+    fi
+done
+
+# Package installation - time to fill our toolbox! 🧰
+echo "📥 Installing ALL the packages..."
+sudo apt update || log_error "Repository update took an unexpected vacation"
+
+# Installing core packages - the foundation of our fortress
+for package in "${CORE_PACKAGES[@]}"; do
+    sudo apt install -y "$package" || log_error "$package decided to play hard to get"
+done
+
+# Installing OSINT packages - knowledge is power! 🔍
+for package in "${OSINT_PACKAGES[@]}"; do
+    sudo apt install -y "$package" || log_error "$package is being shy"
+done
+
+# VSCode installation - because GUI IDEs deserve love too
+echo "💻 Deploying Visual Studio Code..."
+curl -L "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64" -o code.deb
+sudo dpkg -i code.deb || log_error "VSCode installation needs attention"
+rm code.deb
+
+# Font setup - making terminals pretty since 2024
+echo "🎨 Making the terminal look fancy..."
+mkdir -p ~/Scripts
+cd ~/Scripts || log_error "Couldn't find our way to Scripts directory"
+git clone https://github.com/powerline/fonts || log_error "Font repository is playing hide and seek"
+cd fonts && chmod +x install.sh && ./install.sh
+
+# Fish shell setup - because bash is so last decade 🐟
+echo "🐟 Teaching Fish new tricks..."
+curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
+fisher install IlanCosman/tide@v6
+
+# Rust installation - because we're too cool for C
+echo "🦀 Summoning the Rust crab..."
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+~/.cargo/bin/cargo install rustscan feroxbuster
+
+# Mission accomplished! 🎉
+echo "🎉 Transformation almost complete! Here's your todo list:"
+echo "1. Install Pimp My Kali."
+echo "2. Give your system a well-deserved reboot after you pimp your Kali"
+echo "3. Check $LOG_FILE for any hiccups along the way"
+
+# PimpMyKali - making Kali look good 💅
+# echo "🛠️ Time to pimp this ride..."
+# git clone https://github.com/Dewalt-arch/pimpmykali.git
+# cd pimpmykali
+# ./pimpmykali.sh
