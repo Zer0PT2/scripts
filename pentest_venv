@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Base directory for tools
+TOOLS=(
+    "pcredz"
+    "responder"
+    "crackmapexec"
+)
+
+# Show available tools
+echo "Available tools:"
+for i in "${!TOOLS[@]}"; do
+    echo "[$i] ${TOOLS[$i]}"
+done
+
+# Get tool selection
+echo "Select tool number (0-$((${#TOOLS[@]}-1))): "
+read tool_number
+
+# Validate selection
+if ! [[ "$tool_number" =~ ^[0-9]+$ ]] || [ "$tool_number" -ge ${#TOOLS[@]} ]; then
+    echo "Invalid selection"
+    exit 1
+fi
+
+selected_tool="${TOOLS[$tool_number]}"
+venv_path="/opt/pentest_tools/${selected_tool}/venv"
+
+# Check if venv exists
+if [ ! -f "$venv_path/bin/activate" ]; then
+    echo "Creating new virtual environment for ${selected_tool}..."
+    mkdir -p "/opt/pentest_tools/${selected_tool}"
+    python3 -m venv "$venv_path"
+fi
+
+# Output the activation command
+echo "source $venv_path/bin/activate"
